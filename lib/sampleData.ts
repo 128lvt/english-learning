@@ -1,0 +1,110 @@
+import type { VocabWord } from '../types';
+
+const RAW_SAMPLE: Array<Omit<VocabWord, 'id' | 'status' | 'createdAt' | 'updatedAt'>> = [
+  {
+    stt: 1,
+    word: 'discovery',
+    partOfSpeech: 'noun',
+    phonetic: '/dɪˈskʌvəri/',
+    meaning: 'sự khám phá',
+    example: 'This discovery changed the world.',
+  },
+  {
+    stt: 2,
+    word: 'commercial',
+    partOfSpeech: 'adjective',
+    phonetic: '/kəˈmɜːʃl/',
+    meaning: 'thuộc về thương mại',
+    example: 'Commercial products are everywhere.',
+  },
+  {
+    stt: 3,
+    word: 'achieve',
+    partOfSpeech: 'verb',
+    phonetic: '/əˈtʃiːv/',
+    meaning: 'đạt được',
+    example: 'She worked hard to achieve her goals.',
+  },
+  {
+    stt: 4,
+    word: 'reliable',
+    partOfSpeech: 'adjective',
+    phonetic: '/rɪˈlaɪəbl/',
+    meaning: 'đáng tin cậy',
+    example: 'He is a reliable friend.',
+  },
+  {
+    stt: 5,
+    word: 'opportunity',
+    partOfSpeech: 'noun',
+    phonetic: '/ˌɒpəˈtjuːnəti/',
+    meaning: 'cơ hội',
+    example: 'This job is a great opportunity for me.',
+  },
+  {
+    stt: 6,
+    word: 'negotiate',
+    partOfSpeech: 'verb',
+    phonetic: '/nɪˈɡəʊʃieɪt/',
+    meaning: 'thương lượng',
+    example: 'They negotiated a better price.',
+  },
+  {
+    stt: 7,
+    word: 'fragile',
+    partOfSpeech: 'adjective',
+    phonetic: '/ˈfrædʒaɪl/',
+    meaning: 'dễ vỡ, mong manh',
+    example: 'Please handle the glasses, they are fragile.',
+  },
+  {
+    stt: 8,
+    word: 'generous',
+    partOfSpeech: 'adjective',
+    phonetic: '/ˈdʒenərəs/',
+    meaning: 'rộng lượng, hào phóng',
+    example: 'It was generous of you to help us.',
+  },
+  {
+    stt: 9,
+    word: 'postpone',
+    partOfSpeech: 'verb',
+    phonetic: '/pəˈspəʊn/',
+    meaning: 'trì hoãn',
+    example: 'We had to postpone the meeting.',
+  },
+  {
+    stt: 10,
+    word: 'evidence',
+    partOfSpeech: 'noun',
+    phonetic: '/ˈevɪdəns/',
+    meaning: 'bằng chứng',
+    example: 'There is no evidence to support that claim.',
+  },
+  {
+    stt: 11,
+    word: 'curious',
+    partOfSpeech: 'adjective',
+    phonetic: '/ˈkjʊəriəs/',
+    meaning: 'tò mò, hiếu kỳ',
+    example: 'The children were curious about the old house.',
+  },
+  {
+    stt: 12,
+    word: 'establish',
+    partOfSpeech: 'verb',
+    phonetic: '/ɪˈstæblɪʃ/',
+    meaning: 'thành lập, thiết lập',
+    example: 'The company was established in 1990.',
+  },
+];
+
+export function buildSampleWords(now: number = Date.now()): VocabWord[] {
+  return RAW_SAMPLE.map((row, index) => ({
+    ...row,
+    id: `sample-${index}-${now}`,
+    status: 'learning',
+    createdAt: now,
+    updatedAt: now,
+  }));
+}
