@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Lora, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { VocabProvider } from '@/context/VocabContext';
+import { SessionWrapper } from '@/components/SessionWrapper';
 
 const lora = Lora({
   subsets: ['latin', 'vietnamese'],
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi" className={`${lora.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body>
-        <VocabProvider>{children}</VocabProvider>
+        <SessionWrapper>
+          <VocabProvider>{children}</VocabProvider>
+        </SessionWrapper>
       </body>
     </html>
   );

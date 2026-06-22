@@ -2,18 +2,12 @@ import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 
 let cachedSql: NeonQueryFunction<false, false> | null = null;
 
-/**
- * Lazily creates the Neon SQL client on first real use (inside a request),
- * rather than at module-load time — Next.js evaluates route module top-level
- * code while collecting page data during `next build`, so throwing eagerly
- * here would break every build that doesn't have DATABASE_URL available yet.
- */
 function getSql(): NeonQueryFunction<false, false> {
   if (!cachedSql) {
     const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
     if (!connectionString) {
       throw new Error(
-        'Thiếu biến môi trường DATABASE_URL (hoặc POSTGRES_URL). Hãy kết nối một Postgres database (Neon) cho project trên Vercel, hoặc tạo file .env.local khi chạy ở máy — xem .env.example.',
+        'Thiếu biến môi trường DATABASE_URL. Xem .env.example để biết cách cấu hình.',
       );
     }
     cachedSql = neon(connectionString);
@@ -23,18 +17,30 @@ function getSql(): NeonQueryFunction<false, false> {
 
 let schemaReadyPromise: Promise<void> | null = null;
 
-/**
- * Creates the `words` table on first use and seeds it with the starter deck
- * if it's empty. Safe to call on every request — the heavy lifting only runs
- * once per warm serverless instance thanks to the cached promise below.
- */
 export function ensureSchema(): Promise<void> {
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
       const sql = getSql();
+
+      // --- Users table ---
+      await sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL DEFAULT '',
+          password_hash TEXT,
+          provider TEXT NOT NULL DEFAULT 'credentials',
+          streak_days INTEGER NOT NULL DEFAULT 0,
+          last_study_date DATE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
+
+      // --- Words table (scoped per user) ---
       await sql`
         CREATE TABLE IF NOT EXISTS words (
           id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           stt INTEGER NOT NULL,
           word TEXT NOT NULL,
           part_of_speech TEXT NOT NULL DEFAULT 'unknown',
@@ -47,23 +53,14 @@ export function ensureSchema(): Promise<void> {
         )
       `;
 
-      const [{ count }] = (await sql`SELECT COUNT(*)::int AS count FROM words`) as Array<{ count: number }>;
-      if (count === 0) {
-        const { buildSampleWords } = await import('./sampleData');
-        const seedWords = buildSampleWords();
-        for (const w of seedWords) {
-          await sql`
-            INSERT INTO words (id, stt, word, part_of_speech, phonetic, meaning, example, status, created_at, updated_at)
-            VALUES (${w.id}, ${w.stt}, ${w.word}, ${w.partOfSpeech}, ${w.phonetic}, ${w.meaning}, ${w.example}, ${w.status}, to_timestamp(${w.createdAt / 1000}), to_timestamp(${w.updatedAt / 1000}))
-          `;
-        }
-      }
+      await sql`
+        CREATE INDEX IF NOT EXISTS words_user_id_idx ON words(user_id)
+      `;
     })();
   }
   return schemaReadyPromise;
 }
 
-/** Exposed for the repo layer — always call this from inside a function body, never at module scope. */
 export function sql(strings: TemplateStringsArray, ...values: unknown[]) {
   return getSql()(strings, ...values);
 }

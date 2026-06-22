@@ -1,118 +1,213 @@
-# VocaNight (Next.js) — Học từ vựng tiếng Anh mỗi đêm 🌙
+# VocaNight — Học từ vựng tiếng Anh mỗi đêm 🌙
 
-Bản **Next.js (App Router)** của VocaNight — flashcard học từ vựng tiếng Anh, dữ liệu lưu trên **Postgres (Neon)**
-qua API routes, nên **dùng được trên mọi thiết bị** (máy tính, điện thoại, mọi trình duyệt) và **deploy thẳng lên
-Vercel**.
+Ứng dụng flashcard học từ vựng tiếng Anh xây dựng bằng **Next.js 16 (App Router)**, **Postgres (Neon)** và **Auth.js v5** — dùng được trên mọi thiết bị (máy tính, điện thoại), mọi trình duyệt, deploy thẳng lên Vercel.
 
-> Đây là bản kế tiếp của bản Vite/React trước đó — bản đó dùng File System Access API để ghi trực tiếp vào file
-> Excel, chỉ chạy trên Chrome/Edge desktop. Bản Next.js này thay file Excel bằng một database thật trên cloud,
-> nên hoạt động được trên mobile và đồng bộ giữa nhiều thiết bị.
+---
 
-## 1. Tính năng chính
+## 1. Tính năng
 
-- Flashcard lật thẻ, phím tắt (←/→ chuyển thẻ, Space lật thẻ, 1/2 đánh dấu).
-- Đang học / Đã học, thêm từ mới ngay trong lúc học.
-- Import Excel (.xlsx/.xls) — parse ngay trên trình duyệt, gửi lên server để lưu vào database.
-- Xuất Excel — tải toàn bộ database hiện tại ra một file `.xlsx` mới.
-- Tìm kiếm trong Đang học / Đã học, trang Thống kê có progress bar.
-- **Dữ liệu lưu trên Postgres (Neon)**, qua các API route của Next.js — không còn phụ thuộc trình duyệt hay
-  thiết bị nào, dùng được trên mobile.
-- Giao diện tối, responsive mobile-first.
+### Xác thực (mới)
+- **Đăng ký / Đăng nhập** bằng Email + Mật khẩu (mật khẩu được hash bằng bcrypt, salt rounds = 12)
+- **Đăng nhập Google OAuth** (tuỳ chọn — hoạt động nếu cấu hình `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`)
+- **Middleware bảo vệ** toàn bộ app — tự redirect về `/login` nếu chưa đăng nhập
+- **Dữ liệu riêng tư theo từng tài khoản** — mỗi user có bộ từ vựng riêng, không bị lẫn nhau
+- **UserMenu** (dropdown góc trên phải): hiển thị tên, email, streak ngày học, nút đăng xuất
+- **Bộ từ mẫu** được tự động seed cho tài khoản mới ngay khi đăng ký
 
-## 2. Công nghệ sử dụng
+### Học từ vựng
+- **Flashcard lật thẻ** — mặt trước (từ vựng + từ loại), mặt sau (phiên âm + nghĩa + ví dụ)
+- **Shuffle mode** — nút xáo trộn ngẫu nhiên thứ tự thẻ trong phiên học
+- **Session counter** — đếm số thẻ đã xem trong phiên học hiện tại
+- **Phím tắt**: `←`/`→` chuyển thẻ · `Space`/`Enter` lật thẻ · `1` = Chưa nhớ · `2` = Đã thuộc
+- **Đang học / Đã học** với nút chuyển đổi qua lại
+- **Xoá từ** (với optimistic update + rollback nếu API lỗi)
+- **Sửa từ** — modal slide-up với đầy đủ trường, chip chọn từ loại
+- **Thêm từ mới** ngay trong lúc học
 
-| Thành phần | Công nghệ |
+### Import / Export
+- **Import Excel** (.xlsx/.xls) — parse ở trình duyệt, gửi lên server lưu vào DB
+- **Xuất Excel** — tải toàn bộ danh sách từ ra file `.xlsx` (có cột Trạng thái để round-trip)
+- Hỗ trợ cột: STT, Từ vựng, Từ loại, Phiên âm, Ý nghĩa, Ví dụ minh họa, Trạng thái (tuỳ chọn)
+
+### Thống kê & Streak
+- **4 thẻ thống kê**: Tổng từ, Đang học, Đã học, Phiên này
+- **Progress bar** tiến độ học tổng thể
+- **Study streak** — đếm chuỗi ngày học liên tiếp (hiển thị trong UserMenu)
+- **Tìm kiếm** từ vựng / nghĩa trong cả hai danh sách
+
+---
+
+## 2. Công nghệ
+
+| Thành phần | Chi tiết |
 |---|---|
-| Framework | Next.js 16 (App Router), React 19, TypeScript |
-| Styling | TailwindCSS 4 (CSS-first config qua `@theme`) |
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Auth | Auth.js v5 (next-auth@beta) — Credentials + Google OAuth |
+| Database | Postgres (Neon) qua `@neondatabase/serverless` |
+| Styling | TailwindCSS 4 (CSS-first `@theme`) |
 | Animation | Framer Motion |
-| Icon | Lucide React |
-| Database | Postgres qua [Neon](https://neon.tech) (Vercel Marketplace) |
-| DB client | `@neondatabase/serverless` (HTTP, không cần connection pool) |
-| Excel | `xlsx` (SheetJS) — parse ở client, build workbook ở server |
-| Deploy | Vercel |
+| Icons | Lucide React |
+| Excel | SheetJS (xlsx) — parse ở client, build workbook ở server |
+| Deploy | Vercel (zero-config) |
+
+---
 
 ## 3. Cấu trúc dự án
 
 ```
 vocanight-next/
 ├─ app/
-│  ├─ layout.tsx              # Root layout: fonts, metadata, bọc VocabProvider
-│  ├─ page.tsx                # Render <App /> (client component)
-│  ├─ globals.css             # Tailwind v4 theme (@theme): màu/font/shadow
-│  └─ api/words/
-│     ├─ route.ts             # GET (list), POST (thêm 1 từ)
-│     ├─ [id]/route.ts        # PATCH (đổi trạng thái learning/learned)
-│     ├─ import/route.ts      # POST (bulk insert từ Excel đã parse)
-│     └─ export/route.ts      # GET (tải toàn bộ DB ra .xlsx)
-├─ components/                # Toàn bộ UI (Flashcard, Learning, Learned, AddWord, Import, Stats, Layout, common)
-├─ context/                   # VocabContext + useVocab — fetch & cập nhật qua API, không còn localStorage
+│  ├─ layout.tsx                  # Root layout: fonts (Lora/Jakarta/JetBrains), metadata, providers
+│  ├─ page.tsx                    # Render <App /> client component
+│  ├─ globals.css                 # Tailwind v4 @theme: màu ink/paper/amber/sage/clay, font tokens
+│  ├─ login/page.tsx              # Trang đăng nhập
+│  ├─ register/page.tsx           # Trang đăng ký
+│  └─ api/
+│     ├─ auth/[...nextauth]/      # NextAuth route handler
+│     ├─ register/                # POST — tạo tài khoản mới
+│     ├─ streak/                  # POST — cập nhật study streak
+│     └─ words/
+│        ├─ route.ts              # GET (list), POST (thêm 1 từ)
+│        ├─ [id]/route.ts         # PATCH (sửa / đổi status), DELETE
+│        ├─ import/route.ts       # POST (bulk insert từ Excel)
+│        └─ export/route.ts       # GET (tải .xlsx)
+├─ components/
+│  ├─ Auth/
+│  │  ├─ AuthForm.tsx             # Form đăng nhập/đăng ký (dùng chung cho cả 2 trang)
+│  │  └─ UserMenu.tsx             # Dropdown avatar: tên, streak, đăng xuất
+│  ├─ Flashcard/
+│  │  ├─ Flashcard.tsx            # Thẻ lật AnimatePresence (không dùng backface-visibility trick)
+│  │  └─ FlashcardView.tsx        # Điều hướng thẻ + nút Shuffle + session counter
+│  ├─ Layout/
+│  │  ├─ AppShell.tsx             # Wrapper: TopNav + BottomNav + main content
+│  │  ├─ TopNav.tsx               # Desktop nav bar với UserMenu
+│  │  ├─ BottomNav.tsx            # Mobile tab bar
+│  │  ├─ SyncIndicator.tsx        # Badge đồng bộ cloud nhỏ
+│  │  └─ navConfig.ts             # Cấu hình 5 tab menu
+│  ├─ Learning/LearningPage.tsx   # Deck lật thẻ + danh sách + Sửa/Xoá
+│  ├─ Learned/LearnedPage.tsx     # Danh sách đã học + Học lại / Sửa / Xoá
+│  ├─ AddWord/AddWordPage.tsx     # Form thêm từ mới
+│  ├─ Import/ImportPage.tsx       # Drop zone import + nút xuất Excel
+│  ├─ Stats/StatsPage.tsx         # 4 thẻ số liệu + progress bar + streak info
+│  ├─ common/
+│  │  ├─ EditWordModal.tsx        # Modal slide-up sửa từ (dùng ở Learning + Learned)
+│  │  ├─ ToastStack.tsx           # Stack thông báo toast (success/error/info)
+│  │  ├─ SearchBar.tsx            # Input tìm kiếm có nút xoá
+│  │  ├─ ProgressBar.tsx          # Progress bar gradient amber
+│  │  └─ EmptyState.tsx           # Placeholder khi danh sách trống
+│  ├─ App.tsx                     # Root client component: routing giữa 5 trang, loading/error states
+│  └─ SessionWrapper.tsx          # Bọc SessionProvider (cho useSession() hoạt động)
+├─ context/
+│  ├─ VocabContext.tsx            # Provider: fetch API, optimistic updates, shuffle, session counter
+│  ├─ useVocab.ts                 # Hook useVocab()
+│  └─ vocabContextDefinition.ts  # Interface VocabContextValue
 ├─ lib/
-│  ├─ db.ts                   # Kết nối Neon (lazy — không throw lúc build), ensureSchema() tự tạo bảng + seed
-│  ├─ words-repo.ts           # Các hàm CRUD (listWords, createWord, updateWordStatus, bulkInsertWords)
-│  ├─ excel.ts                # Parse Excel (client) + build workbook bytes (server, dùng cho export)
-│  └─ sampleData.ts           # Bộ từ mẫu để seed database lần đầu
-├─ types/index.ts
-├─ .env.example                # Mẫu biến môi trường cần thiết
-└─ package.json
+│  ├─ db.ts                       # Neon SQL client (lazy-init), ensureSchema()
+│  ├─ users-repo.ts               # CRUD users: findByEmail, createWithCredentials, streak, OAuth
+│  ├─ words-repo.ts               # CRUD words (scoped by userId): list, create, update, delete, bulk
+│  ├─ excel.ts                    # parseExcelFile() (client) + buildWorkbookBytes() (server)
+│  └─ sampleData.ts               # 12 từ mẫu seed cho tài khoản mới
+├─ types/index.ts                 # VocabWord, NewWordInput, ViewKey, ... + Session augment
+├─ auth.ts                        # Auth.js config: Credentials + Google, JWT callbacks
+├─ middleware.ts                  # Bảo vệ routes, redirect /login nếu chưa đăng nhập
+├─ .env.example                   # Mẫu cấu hình env vars
+└─ sample-data/vocabulary_mau.xlsx
 ```
 
-## 4. Chạy ở máy local
+---
 
-Yêu cầu: [Node.js](https://nodejs.org) 18+, và một Postgres database (xem mục 5).
+## 4. Cài đặt và chạy ở máy local
+
+**Yêu cầu**: Node.js 18+
 
 ```bash
 cd vocanight-next
 npm install
 ```
 
-Tạo file `.env.local` (copy từ `.env.example`) với connection string Postgres của bạn:
+Tạo `.env.local` (copy từ `.env.example`):
 
-```
+```env
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+AUTH_SECRET=your-very-strong-random-secret-here
+
+# Tuỳ chọn — bỏ trống nếu chỉ dùng đăng nhập email/mật khẩu
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
 ```
 
-Rồi chạy:
+Chạy:
 
 ```bash
-npm run dev
-```
-
-Mở `http://localhost:3000`.
-
-### Build / kiểm tra
-
-```bash
-npm run build   # build production (Turbopack)
-npm run start   # chạy bản build
+npm run dev      # http://localhost:3000
+npm run build    # Build production
 npm run lint     # ESLint
 ```
 
-## 5. Lấy database Postgres miễn phí (Neon) và deploy lên Vercel
+**Lần đầu mở app**: `ensureSchema()` tự tạo bảng `users` và `words` trong database — không cần chạy SQL tay.
 
-Vercel đã chuyển Postgres sang mô hình **Marketplace integration**, dùng [Neon](https://neon.tech) làm nhà cung
-cấp. Cách nhanh nhất — làm ngay trong lúc deploy:
+---
 
-1. Push code lên một repo GitHub (hoặc dùng `vercel` CLI để deploy trực tiếp từ máy).
-2. Vào [vercel.com/new](https://vercel.com/new) → Import repo này → Deploy (Next.js được Vercel tự nhận diện,
-   không cần cấu hình gì thêm).
-3. Sau khi deploy lần đầu (sẽ lỗi vì chưa có `DATABASE_URL`, không sao): vào **Project → Storage tab → Connect
-   Database / Browse Marketplace → chọn Neon (Postgres) → Create**. Vercel sẽ tự inject biến `DATABASE_URL` (hoặc
-   tương đương) vào project.
-4. Vào **Deployments**, chọn deployment mới nhất → **Redeploy** (để áp dụng biến môi trường mới).
-5. Mở app — lần đầu vào, `ensureSchema()` sẽ tự tạo bảng `words` và nạp sẵn bộ từ mẫu, không cần chạy migration
-   tay.
+## 5. Deploy lên Vercel
 
-**Chạy local nhưng dùng chung database với production:** sau khi đã liên kết project với Vercel (`vercel link`),
-chạy `vercel env pull .env.local` để tải đúng connection string đó về máy — không cần cài Postgres riêng ở local.
+### Bước 1 — Push code lên GitHub
 
-## 6. Cấu trúc bảng `words`
+```bash
+git init && git add . && git commit -m "init"
+git remote add origin https://github.com/your-name/vocanight-next.git
+git push -u origin main
+```
 
-App tự tạo bảng này (không cần chạy SQL tay):
+### Bước 2 — Import vào Vercel
+
+Vào [vercel.com/new](https://vercel.com/new) → Import repo → Deploy (Next.js được nhận diện tự động).
+
+### Bước 3 — Gắn database Neon
+
+**Project → Storage → Browse Marketplace → Neon** → Create & Connect. Vercel tự inject `DATABASE_URL` vào project.
+
+### Bước 4 — Thêm biến môi trường
+
+**Project → Settings → Environment Variables**, thêm:
+
+| Tên | Giá trị |
+|---|---|
+| `AUTH_SECRET` | Chuỗi ngẫu nhiên: `openssl rand -base64 33` |
+| `AUTH_GOOGLE_ID` | *(tuỳ chọn)* Client ID từ Google Console |
+| `AUTH_GOOGLE_SECRET` | *(tuỳ chọn)* Client Secret từ Google Console |
+
+### Bước 5 — Redeploy
+
+**Deployments → Redeploy** để áp dụng env vars mới.
+
+### Cấu hình Google OAuth *(tuỳ chọn)*
+
+1. Vào [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
+2. Create OAuth 2.0 Client ID (Web application)
+3. Authorized redirect URIs: `https://your-app.vercel.app/api/auth/callback/google`
+4. Copy Client ID và Secret vào env vars Vercel
+
+---
+
+## 6. Schema database
+
+App tự tạo 2 bảng khi khởi động lần đầu:
 
 ```sql
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL DEFAULT '',
+  password_hash TEXT,              -- NULL với OAuth users
+  provider TEXT NOT NULL DEFAULT 'credentials',
+  streak_days INTEGER NOT NULL DEFAULT 0,
+  last_study_date DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE words (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   stt INTEGER NOT NULL,
   word TEXT NOT NULL,
   part_of_speech TEXT NOT NULL DEFAULT 'unknown',
@@ -125,27 +220,27 @@ CREATE TABLE words (
 );
 ```
 
-## 7. API routes
+---
 
-| Route | Method | Mô tả |
-|---|---|---|
-| `/api/words` | GET | Lấy toàn bộ danh sách từ |
-| `/api/words` | POST | Thêm 1 từ mới — body: `{ word, partOfSpeech, phonetic, meaning, example }` |
-| `/api/words/:id` | PATCH | Đổi trạng thái — body: `{ status: "learning" \| "learned" }` |
-| `/api/words/import` | POST | Thêm nhiều từ cùng lúc — body: `{ rows: ImportRow[] }` |
-| `/api/words/export` | GET | Tải file `.xlsx` chứa toàn bộ dữ liệu hiện tại |
+## 7. API Routes
 
-## 8. Lưu ý khi đã build/test trong môi trường này
+| Route | Method | Auth | Mô tả |
+|---|---|---|---|
+| `/api/auth/[...nextauth]` | GET/POST | — | NextAuth handler |
+| `/api/register` | POST | — | Đăng ký tài khoản mới |
+| `/api/streak` | POST | ✓ | Cập nhật study streak |
+| `/api/words` | GET | ✓ | Lấy danh sách từ của user |
+| `/api/words` | POST | ✓ | Thêm 1 từ mới |
+| `/api/words/:id` | PATCH | ✓ | Sửa từ hoặc đổi trạng thái |
+| `/api/words/:id` | DELETE | ✓ | Xoá từ |
+| `/api/words/import` | POST | ✓ | Bulk insert từ Excel đã parse |
+| `/api/words/export` | GET | ✓ | Tải file .xlsx |
 
-Project đã được chạy qua `tsc --noEmit`, `eslint` và `next build` — tất cả đều sạch. Phần gọi Postgres (qua
-`@neondatabase/serverless`) đã được review kỹ về mặt logic SQL nhưng **chưa được test trực tiếp với một Postgres
-thật** trong môi trường này (môi trường chạy việc này bị giới hạn mạng, không gọi ra ngoài Internet được). Sau khi
-gắn `DATABASE_URL` thật (mục 5), hãy thử qua một lượt: thêm từ → đánh dấu đã thuộc → học lại → import Excel → tải
-Excel, để chắc chắn mọi thứ hoạt động đúng với database của bạn.
+---
 
-## 9. Gợi ý mở rộng
+## 8. Ghi chú kỹ thuật
 
-- Thêm xác thực người dùng (NextAuth/Clerk) nếu muốn nhiều người dùng có danh sách từ riêng (thêm cột `user_id`).
-- Thêm chế độ ôn tập ngẫu nhiên (xáo trộn thứ tự thẻ).
-- Cache `GET /api/words` bằng React Query/SWR nếu danh sách từ lớn.
-- Thêm phát âm Text-to-Speech ở mặt sau thẻ.
+- **Auth middleware** chạy ở Edge runtime — `auth.ts` dùng dynamic `import()` cho bcrypt/DB để tránh kéo Node-only modules vào Edge bundle.
+- **Optimistic updates**: đánh dấu Đã thuộc / Học lại / Xoá từ phản hồi ngay lập tức, rollback nếu API lỗi.
+- **Shuffle mode**: khi bật, tạo và cache thứ tự ngẫu nhiên; từ mới thêm sau được nối vào cuối (không re-shuffle toàn bộ).
+- **Bảo mật**: mọi API route (trừ `/api/auth` và `/api/register`) đều kiểm tra session và lọc dữ liệu theo `user_id` — không thể truy cập từ của người dùng khác dù biết ID.
