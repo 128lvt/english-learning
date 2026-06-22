@@ -59,29 +59,30 @@ export function VocabProvider({ children }: { children: ReactNode }) {
   // This prevents the race where the fetch fires before the session cookie is
   // written to the browser (which would return an HTML redirect, not JSON).
   useEffect(() => {
-    if (status !== 'authenticated') {
-      // Still waiting for session — keep isLoading true so the spinner shows.
-      // When status transitions to 'authenticated', this effect re-runs and fetches.
-      if (status === 'unauthenticated') {
-        // Middleware will redirect to /login; nothing to load.
-        setIsLoading(false);
-      }
-      return;
+  if (status !== 'authenticated') {
+    if (status === 'unauthenticated') setIsLoading(false);
+    return;
+  }
+
+  // ← hai dòng này bị thiếu trong file của bạn
+  let cancelled = false;
+  (async () => {
+    try {
+      const res = await fetch('/api/words', { cache: 'no-store' });
+      if (!res.ok) throw new Error(await readJsonError(res));
+      const data = (await res.json()) as { words: VocabWord[] };
+      if (!cancelled) setWords(data.words);
+    } catch (error) {
+      if (!cancelled)
+        setLoadError(
+          error instanceof Error ? error.message : 'Không thể tải dữ liệu từ database.'
+        );
+    } finally {
+      if (!cancelled) setIsLoading(false);
     }
-      try {
-        const res = await fetch('/api/words', { cache: 'no-store' });
-        if (!res.ok) throw new Error(await readJsonError(res));
-        const data = (await res.json()) as { words: VocabWord[] };
-        if (!cancelled) setWords(data.words);
-      } catch (error) {
-        if (!cancelled)
-          setLoadError(error instanceof Error ? error.message : 'Không thể tải dữ liệu từ database.');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  })();                        // ← đóng IIFE
+  return () => { cancelled = true; };
+}, [status]);     
 
   const learningWords = useMemo(() => words.filter((w) => w.status === 'learning'), [words]);
   const learnedWords = useMemo(() => words.filter((w) => w.status === 'learned'), [words]);
