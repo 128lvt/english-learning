@@ -1,11 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useSession } from 'next-auth/react';
 import type { NewWordInput, ToastMessage, VocabWord, WordStatus } from '../types';
 import type { ImportRow } from '../lib/words-repo';
 import { VocabContext, type VocabContextValue } from './vocabContextDefinition';
 
 async function readJsonError(response: Response): Promise<string> {
+  // Guard against HTML responses (e.g. a middleware redirect returning <!DOCTYPE …>)
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return `Lỗi ${response.status} — phản hồi không phải JSON (có thể session chưa sẵn sàng).`;
+  }
   try {
     const body = (await response.json()) as { error?: string };
     return body.error ?? `Lỗi ${response.status}`;
@@ -24,6 +30,11 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 export function VocabProvider({ children }: { children: ReactNode }) {
+  // Wait for NextAuth to confirm the session before fetching words.
+  // Without this, the fetch fires while the session cookie is still being
+  // written after login → middleware redirects → HTML response → JSON parse error.
+  const { status } = useSession();
+
   const [words, setWords] = useState<VocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -44,10 +55,19 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Initial load
+  // Initial load — only runs once the session is confirmed as authenticated.
+  // This prevents the race where the fetch fires before the session cookie is
+  // written to the browser (which would return an HTML redirect, not JSON).
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    if (status !== 'authenticated') {
+      // Still waiting for session — keep isLoading true so the spinner shows.
+      // When status transitions to 'authenticated', this effect re-runs and fetches.
+      if (status === 'unauthenticated') {
+        // Middleware will redirect to /login; nothing to load.
+        setIsLoading(false);
+      }
+      return;
+    }
       try {
         const res = await fetch('/api/words', { cache: 'no-store' });
         if (!res.ok) throw new Error(await readJsonError(res));
